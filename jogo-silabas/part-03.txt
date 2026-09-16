@@ -1,0 +1,144 @@
+utton><button id="changeNameBtn" class="ghost-btn">Trocar nome</button></div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  const vowels = ["A","E","I","O","U"];
+  const wordBank = [
+    {word:"BOLA", syll:["BO","LA"], emoji:"⚽", first:"B"},
+    {word:"CASA", syll:["CA","SA"], emoji:"🏠", first:"C"},
+    {word:"PATO", syll:["PA","TO"], emoji:"🦆", first:"P"},
+    {word:"GATO", syll:["GA","TO"], emoji:"🐱", first:"G"},
+    {word:"SAPO", syll:["SA","PO"], emoji:"🐸", first:"S"},
+    {word:"MALA", syll:["MA","LA"], emoji:"🧳", first:"M"},
+    {word:"DADO", syll:["DA","DO"], emoji:"🎲", first:"D"},
+    {word:"FOCA", syll:["FO","CA"], emoji:"🦭", first:"F"},
+    {word:"LUA", syll:["LU","A"], emoji:"🌙", first:"L"},
+    {word:"RATO", syll:["RA","TO"], emoji:"🐭", first:"R"},
+    {word:"VACA", syll:["VA","CA"], emoji:"🐮", first:"V"},
+    {word:"BOLO", syll:["BO","LO"], emoji:"🍰", first:"B"},
+    {word:"BEBÊ", syll:["BE","BÊ"], emoji:"👶", first:"B"},
+    {word:"MESA", syll:["ME","SA"], emoji:"🪑", first:"M"},
+    {word:"PIPA", syll:["PI","PA"], emoji:"🪁", first:"P"},
+    {word:"BOCA", syll:["BO","CA"], emoji:"👄", first:"B"},
+    {word:"FADA", syll:["FA","DA"], emoji:"🧚", first:"F"},
+    {word:"MACACO", syll:["MA","CA","CO"], emoji:"🐒", first:"M"},
+    {word:"BONECA", syll:["BO","NE","CA"], emoji:"🪆", first:"B"},
+    {word:"TOMATE", syll:["TO","MA","TE"], emoji:"🍅", first:"T"},
+    {word:"PIRULITO", syll:["PI","RU","LI","TO"], emoji:"🍭", first:"P"}
+  ];
+
+  const families = ["B","C","D","F","G","L","M","N","P","R","S","T","V"];
+  const familyMap = Object.fromEntries(families.map(c => [c, vowels.map(v => c+v)]));
+  familyMap.C = ["CA","CE","CI","CO","CU"];
+  familyMap.G = ["GA","GE","GI","GO","GU"];
+
+  const games = [
+    {id:"alphabet", icon:"🔤", title:"ABC Mágico", desc:"Reconheça as letras e ouça seus nomes.", class:"c1", badge:"Comece aqui"},
+    {id:"initial", icon:"🎈", title:"Primeiro Som", desc:"Descubra com qual letra a palavra começa.", class:"c2", badge:"Letras"},
+    {id:"families", icon:"🚂", title:"Trem das Sílabas", desc:"Treine famílias como BA, BE, BI, BO, BU.", class:"c3", badge:"Sílabas"},
+    {id:"startsyl", icon:"🧩", title:"Qual é a Sílaba?", desc:"Escolha a sílaba que começa cada palavra.", class:"c4", badge:"Sílabas"},
+    {id:"build", icon:"🏗️", title:"Monte a Palavra", desc:"Junte as sílabas na ordem certa.", class:"c5", badge:"Formação"},
+    {id:"read", icon:"📖", title:"Leitura Divertida", desc:"Leia uma palavrinha e escolha a figura certa.", class:"c6", badge:"Leitura"},
+    {id:"memory", icon:"🧠", title:"Memória das Sílabas", desc:"Encontre a sílaba e a figura que combinam.", class:"c7", badge:"Memória"},
+    {id:"mix", icon:"🌟", title:"Super Desafio", desc:"Mistura de letras, sílabas e palavrinhas.", class:"c8", badge:"Revisão"}
+  ];
+
+  const els = Object.fromEntries(["startScreen","homeScreen","gameScreen","nameInput","startBtn","childName","starCount","levelLabel","gameGrid","parentBtn","parentModal","closeParent","progressTable","parentSummary","resetBtn","changeNameBtn","voiceSelect","voiceTestBtn","audioStatus","backBtn","gameStars","gameIcon","gameName","roundLabel","progressBar","gameArea","confetti"].map(id=>[id,document.getElementById(id)]));
+
+  let state = load();
+  let session = null;
+  let audioCtx = null;
+  let speechTimer = null;
+  let speechToken = 0;
+  let availableVoices = [];
+
+  const LETTER_SPOKEN = {
+    A:"a", B:"bê", C:"cê", D:"dê", E:"ê", F:"éfe", G:"gê", H:"agá", I:"i",
+    J:"jóta", K:"cá", L:"éle", M:"ême", N:"êne", O:"ó", P:"pê", Q:"quê", R:"érre",
+    S:"ésse", T:"tê", U:"u", V:"vê", W:"dáblio", X:"xis", Y:"ípsilon", Z:"zê"
+  };
+  const SYLLABLE_SPOKEN = {
+    A:"á", BA:"bá",BE:"bê",BI:"bi",BO:"bó",BU:"bu",
+    CA:"cá",CE:"sê",CI:"si",CO:"có",CU:"cu",
+    DA:"dá",DE:"dê",DI:"di",DO:"dó",DU:"du",
+    FA:"fá",FE:"fê",FI:"fi",FO:"fó",FU:"fu",
+    GA:"gá",GE:"jê",GI:"ji",GO:"gó",GU:"gu",
+    LA:"lá",LE:"lê",LI:"li",LO:"ló",LU:"lu",
+    MA:"má",ME:"mê",MI:"mi",MO:"mó",MU:"mu",
+    NA:"ná",NE:"nê",NI:"ni",NO:"nó",NU:"nu",
+    PA:"pá",PE:"pê",PI:"pi",PO:"pó",PU:"pu",
+    RA:"rá",RE:"rê",RI:"ri",RO:"ró",RU:"ru",
+    SA:"sá",SE:"sê",SI:"si",SO:"só",SU:"su",
+    TA:"tá",TE:"tê",TI:"ti",TO:"tó",TU:"tu",
+    VA:"vá",VE:"vê",VI:"vi",VO:"vó",VU:"vu",
+    "BÊ":"bê"
+  };
+
+  function defaultState(){return {name:"",stars:0,plays:{},correct:{},attempts:{},voiceName:""}}
+  function load(){try{return {...defaultState(),...JSON.parse(localStorage.getItem("mundoLetrasProgress")||"{}")} }catch{return defaultState()}}
+  function save(){localStorage.setItem("mundoLetrasProgress",JSON.stringify(state))}
+  function shuffle(arr){return [...arr].sort(()=>Math.random()-.5)}
+  function pick(arr){return arr[Math.floor(Math.random()*arr.length)]}
+  function sample(arr,n,exclude=[]){return shuffle(arr.filter(x=>!exclude.includes(x))).slice(0,n)}
+  function letterName(letter){return LETTER_SPOKEN[String(letter).toUpperCase()] || String(letter).toLowerCase()}
+  function syllableSound(syl){const key=String(syl).toUpperCase();return SYLLABLE_SPOKEN[key] || key.toLowerCase()}
+
+  function isGoogleVoice(v){return /google/i.test(v?.name||"")}
+  function isNeuralVoice(v){return /natural|neural|online|premium|enhanced/i.test(v?.name||"")}
+  function voiceScore(v){
+    const name=(v.name||"").toLowerCase(), lang=(v.lang||"").toLowerCase();
+    let score=0;
+    if(lang==="pt-br")score+=220; else if(lang.startsWith("pt"))score+=120; else score-=500;
+    if(/natural|neural/.test(name))score+=400;
+    if(/online/.test(name))score+=180;
+    if(/francisca|antonio|antônio/.test(name))score+=180;
+    if(/microsoft/.test(name))score+=130;
+    if(/premium|enhanced/.test(name))score+=120;
+    if(/brasil|brazil/.test(name))score+=60;
+    if(/desktop/.test(name))score-=25;
+    if(/google/.test(name))score-=1000;
+    return score;
+  }
+  function portugueseVoices(){
+    return availableVoices.filter(v=>(v.lang||"").toLowerCase().startsWith("pt")&&!isGoogleVoice(v)).sort((a,b)=>voiceScore(b)-voiceScore(a));
+  }
+  function naturalPortugueseVoices(){return portugueseVoices().filter(isNeuralVoice)}
+  function bestVoice(){
+    if(!availableVoices.length && "speechSynthesis" in window)availableVoices=speechSynthesis.getVoices()||[];
+    if(state.voiceName){
+      const chosen=availableVoices.find(v=>v.name===state.voiceName);
+      if(chosen&&!isGoogleVoice(chosen)&&isNeuralVoice(chosen)&&(chosen.lang||"").toLowerCase().startsWith("pt"))return chosen;
+      state.voiceName="";save();
+    }
+    return naturalPortugueseVoices()[0] || null;
+  }
+  function refreshVoices(){
+    if(!("speechSynthesis" in window)){
+      if(els.audioStatus)els.audioStatus.textContent="Este navegador não oferece leitura por voz.";
+      return;
+    }
+    availableVoices=speechSynthesis.getVoices()||[];
+    const pt=naturalPortugueseVoices();
+    if(els.voiceSelect){
+      const current=state.voiceName;
+      els.voiceSelect.innerHTML='<option value="">Automática — somente Natural/Neural</option>'+pt.map(v=>`<option value="${v.name.replace(/&/g,"&amp;").replace(/"/g,"&quot;")}">✨ ${v.name} (${v.lang})</option>`).join("");
+      els.voiceSelect.value=pt.some(v=>v.name===current)?current:"";
+    }
+    const v=bestVoice();
+    if(els.audioStatus){
+      if(v) els.audioStatus.innerHTML=`✅ Voz Natural/Neural encontrada: <b>${v.name}</b> — ${v.lang}`;
+      else els.audioStatus.innerHTML='⚠️ Este navegador não disponibilizou uma voz Natural/Neural em português. O jogo <b>não vai voltar para a voz robótica do Google</b>. No Windows, abra este arquivo no <b>Microsoft Edge</b> e teste novamente; procure “Francisca Online (Natural)” ou “Antonio Online (Natural)”.';
+    }
+  }
+  function utteranceFor(text,{rate=.98,pitch=1.02}={}){
+    const v=bestVoice();
+    if(!v)return null;
+    const u=new SpeechSynthesisUtterance(String(text));
+    u.voice=v;u.lang=v.lang||"pt-BR";u.rate=rate;u.pitch=pitch;u.volume=1;
+    return u;
+  }
+  function cancelSpeech(){
+    clearTim
