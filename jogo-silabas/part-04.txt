@@ -1,0 +1,105 @@
+eout(speechTimer);
+    speechToken++;
+    if("speechSynthesis" in window)speechSynthesis.cancel();
+  }
+  function speakSequence(parts,onDone){
+    if(!("speechSynthesis" in window)||!bestVoice()){onDone?.();return}
+    cancelSpeech();
+    const token=speechToken;
+    const queue=(Array.isArray(parts)?parts:[parts]).map(p=>typeof p==="string"?{text:p}:p).filter(p=>p&&p.text);
+    let i=0;
+    const next=()=>{
+      if(token!==speechToken)return;
+      if(i>=queue.length){onDone?.();return}
+      const part=queue[i++];
+      speechTimer=setTimeout(()=>{
+        if(token!==speechToken)return;
+        const u=utteranceFor(part.text,{rate:part.rate??.98,pitch:part.pitch??1.02});
+        if(!u){onDone?.();return}
+        let finished=false;
+        const finish=()=>{if(finished)return;finished=true;setTimeout(next,part.pauseAfter??180)};
+        u.onend=finish;u.onerror=finish;
+        speechSynthesis.speak(u);
+      },part.delay??60);
+    };
+    next();
+  }
+  function speakNatural(text,{rate=.98,pitch=1.02,delay=70}={}){speakSequence([{text,rate,pitch,delay}])}
+  function speakWord(word){speakSequence([{text:String(word).toLowerCase(),rate:.96,pitch:1.01}])}
+  function speakLetter(letter){speakSequence([{text:"Letra",rate:.98,pauseAfter:230},{text:letterName(letter),rate:.94,pauseAfter:0}])}
+  function speakSyllable(syl){speakSequence([{text:"Sílaba",rate:.98,pauseAfter:230},{text:syllableSound(syl),rate:.94,pauseAfter:0}])}
+  function speakInstruction(text){speakNatural(text,{rate:.98})}
+  function instructionLetter(prefix,letter){speakSequence([{text:prefix,rate:.98,pauseAfter:300},{text:letterName(letter),rate:.94}])}
+  function instructionSyllable(prefix,syl){speakSequence([{text:prefix,rate:.98,pauseAfter:320},{text:syllableSound(syl),rate:.94}])}
+  function segmentedWordParts(w,{intro="Escute comigo",outro=""}={}){
+    const parts=[];
+    if(intro)parts.push({text:intro,rate:.98,pauseAfter:350});
+    w.syll.forEach((syl,i)=>parts.push({text:syllableSound(syl),rate:.93,pauseAfter:i===w.syll.length-1?420:520}));
+    parts.push({text:w.word.toLowerCase(),rate:.98,pauseAfter:outro?300:0});
+    if(outro)parts.push({text:outro,rate:.98,pauseAfter:0});
+    return parts;
+  }
+  function teachWrongStartSyllable(w,target,chosen,done){
+    feedback(`Vamos ouvir: ${w.syll.join(" • ")}. Depois tente novamente.`,`try`);
+    speakSequence([
+      {text:"Você marcou errado. Vamos aprender juntos.",rate:.98,pauseAfter:420},
+      ...w.syll.map((syl,i)=>({text:syllableSound(syl),rate:.92,pauseAfter:i===w.syll.length-1?520:620})),
+      {text:w.word.toLowerCase(),rate:.98,pauseAfter:350},
+      {text:"Começa com a sílaba",rate:.98,pauseAfter:300},
+      {text:syllableSound(target),rate:.92,pauseAfter:450},
+      {text:"Agora tente novamente.",rate:.98,pauseAfter:0}
+    ],done);
+  }
+  function beep(ok=true){
+    try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);o.type="sine";o.frequency.value=ok?660:220;g.gain.setValueAtTime(.08,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+.22);o.start();o.stop(audioCtx.currentTime+.22);if(ok)setTimeout(()=>tone(880,.12),90)}catch{}
+  }
+  function tone(freq,dur){try{const o=audioCtx.createOscillator(),g=audioCtx.createGain();o.connect(g);g.connect(audioCtx.destination);o.frequency.value=freq;g.gain.setValueAtTime(.06,audioCtx.currentTime);g.gain.exponentialRampToValueAtTime(.001,audioCtx.currentTime+dur);o.start();o.stop(audioCtx.currentTime+dur)}catch{}}
+  function confetti(){
+    const colors=["#ff5a7a","#f7b500","#22c55e","#3b82f6","#8b5cf6","#f97316"];
+    for(let i=0;i<36;i++){const p=document.createElement("i");p.style.left=Math.random()*100+"%";p.style.background=pick(colors);p.style.animationDelay=Math.random()*.5+"s";p.style.transform=`rotate(${Math.random()*360}deg)`;els.confetti.appendChild(p);setTimeout(()=>p.remove(),2500)}
+  }
+  function level(){if(state.stars<20)return"Exploradora";if(state.stars<50)return"Caçadora de Letras";if(state.stars<100)return"Mestra das Sílabas";return"Super Leitora"}
+  function updateStats(){els.starCount.textContent=state.stars;els.gameStars.textContent=state.stars;els.levelLabel.textContent=level()}
+  function show(which){[els.startScreen,els.homeScreen,els.gameScreen].forEach(x=>x.classList.add("hidden"));which.classList.remove("hidden");window.scrollTo({top:0,behavior:"smooth"})}
+  function renderHome(){
+    els.childName.textContent=state.name||"amiguinha";updateStats();
+    els.gameGrid.innerHTML=games.map(g=>{
+      const p=state.plays[g.id]||0,c=state.correct[g.id]||0,a=state.attempts[g.id]||0,acc=a?Math.round(c/a*100):0;
+      const starView=p? (acc>=85?"⭐⭐⭐":acc>=65?"⭐⭐":"⭐") : "☆ ☆ ☆";
+      return `<button class="card game-card ${g.class}" data-game="${g.id}"><span class="badge">${g.badge}</span><span class="icon">${g.icon}</span><h3>${g.title}</h3><p>${g.desc}</p><span class="stars">${starView}</span></button>`
+    }).join("");
+    els.gameGrid.querySelectorAll("[data-game]").forEach(b=>b.onclick=()=>startGame(b.dataset.game));
+  }
+  function goHome(){session=null;renderHome();show(els.homeScreen)}
+
+  function startGame(id){
+    const g=games.find(x=>x.id===id);session={id,round:0,total:id==="memory"?1:8,correct:0,mistakes:0,current:null,lock:false};
+    els.gameIcon.textContent=g.icon;els.gameName.textContent=g.title;updateStats();show(els.gameScreen);nextRound();
+  }
+  function updateRound(){els.roundLabel.textContent=session.id==="memory"?"Jogo da memória":`${Math.min(session.round,session.total)} / ${session.total}`;els.progressBar.style.width=(session.id==="memory"?0:(session.round-1)/session.total*100)+"%"}
+  function nextRound(){
+    if(!session)return;
+    if(session.id!=="memory" && session.round>=session.total){finishGame();return}
+    session.round++;session.lock=false;updateRound();
+    const id=session.id;
+    if(id==="alphabet")renderAlphabet(); else if(id==="initial")renderInitial(); else if(id==="families")renderFamilies(); else if(id==="startsyl")renderStartSyl(); else if(id==="build")renderBuild(); else if(id==="read")renderRead(); else if(id==="memory")renderMemory(); else renderMix();
+  }
+  function feedback(text,kind="good"){const f=document.querySelector(".feedback");if(f){f.className="feedback "+kind;f.textContent=text}}
+  function markAnswer(button,ok,answer,onCorrectSpeak,onWrongTeach){
+    if(session.lock)return;
+    state.attempts[session.id]=(state.attempts[session.id]||0)+1;
+    if(ok){
+      session.lock=true;session.correct++;state.correct[session.id]=(state.correct[session.id]||0)+1;state.stars+=2;button?.classList.add("correct");beep(true);confetti();feedback(pick(["Muito bem! 🌟","Acertou! 🎉","Isso mesmo! ⭐","Mandou bem! 💛"]));if(onCorrectSpeak)setTimeout(onCorrectSpeak,260);save();updateStats();showNext();
+    }else{
+      session.mistakes++;session.lock=true;button?.classList.add("wrong");beep(false);feedback("Vamos aprender juntos. Escute com atenção.","try");setTimeout(()=>button?.classList.remove("wrong"),700);
+      const unlock=()=>{session.lock=false};
+      setTimeout(()=>{
+        if(typeof onWrongTeach==="function")onWrongTeach(button?.dataset.value,unlock);
+        else speakSequence([{text:"Você marcou errado. Escute novamente e tente mais uma vez.",rate:.98}],unlock);
+      },300);
+      save();
+    }
+  }
+  function showNext(){const wrap=document.querySelector(".next-wrap");if(wrap){wrap.innerHTML='<button class="next-btn">Próxima ➜</button>';wrap.querySelector("button").onclick=nextRound}else setTimeout(nextRound,700)}
+  function promptBase(emoji,main,sub,voice){return `<div class="prompt-box">${emoji?`<div class="prompt-emoji">${emoji}</div>`:""}<div class="prompt-main">${main}</div><div class="prompt-sub">${sub}</div><button class="speak-btn" aria-label="Ouvir">🔊</button></div><div class="feedback"></div><div class="next-wrap"></div>`}
+  function attachSpeak(fn){
