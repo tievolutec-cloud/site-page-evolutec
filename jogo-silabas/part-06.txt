@@ -1,0 +1,40 @@
+/div><div class="memory-grid">${session.current.cards.map((c,i)=>`<button class="mem" data-i="${i}">?</button>`).join("")}</div><div class="feedback"></div>`;
+    document.querySelectorAll(".mem").forEach(b=>b.onclick=()=>memoryFlip(b));
+  }
+  function memoryFlip(b){
+    const m=session.current;if(b.classList.contains("open")||b.classList.contains("matched")||m.open.length===2)return;const i=+b.dataset.i,c=m.cards[i];b.classList.add("open");b.innerHTML=c.type==="pic"?`${c.label}<small>${c.small}</small>`:c.label;if(c.type==="pic")speakWord(c.small);else speakSyllable(c.label);m.open.push({i,b,c});
+    if(m.open.length===2){m.moves++;const [a,d]=m.open;state.attempts[session.id]=(state.attempts[session.id]||0)+1;if(a.c.key===d.c.key && a.c.type!==d.c.type){a.b.classList.add("matched");d.b.classList.add("matched");a.b.classList.remove("open");d.b.classList.remove("open");m.matched++;session.correct++;state.correct[session.id]=(state.correct[session.id]||0)+1;state.stars+=2;beep(true);feedback("Par encontrado! ⭐");confetti();m.open=[];save();updateStats();if(m.matched===6)setTimeout(finishGame,600)}else{beep(false);const sylCard=[a.c,d.c].find(x=>x.type==="syl");if(sylCard){feedback(`Esses dois não combinam. Lembre do som ${sylCard.label}.`,"try");speakSequence([{text:"Esses dois não formam um par.",rate:.98,pauseAfter:300},{text:"Escute a sílaba",rate:.98,pauseAfter:220},{text:syllableSound(sylCard.label),rate:.93,pauseAfter:350},{text:"Procure uma figura cuja palavra comece com esse som.",rate:.98}]);}else{feedback("Esses dois não combinam. Tente lembrar onde está o par.","try");speakNatural("Esses dois não combinam. Tente novamente.",{rate:.98});}setTimeout(()=>{a.b.classList.remove("open");d.b.classList.remove("open");a.b.textContent="?";d.b.textContent="?";m.open=[]},1400)}}
+  }
+  function renderMix(){
+    const types=["alphabet","initial","families","startsyl","build","read"];const original=session.id;session.id=pick(types);const temp=session.id;const render={alphabet:renderAlphabet,initial:renderInitial,families:renderFamilies,startsyl:renderStartSyl,build:renderBuild,read:renderRead}[temp];render();document.querySelectorAll(".answer,.family-btn,.chip").forEach(()=>{});session.id=original;
+  }
+
+  function finishGame(){
+    if(!session)return;const id=session.id;state.plays[id]=(state.plays[id]||0)+1;const ratio=id==="memory"?Math.min(1,session.correct/6):session.correct/session.total;let starsEarn=ratio>=.85?3:ratio>=.6?2:1;state.stars+=starsEarn;save();updateStats();confetti();els.progressBar.style.width="100%";
+    els.gameArea.innerHTML=`<div class="celebrate"><div class="big">🎉</div><h2>Parabéns, ${state.name||"campeã"}!</h2><p>${ratio>=.85?"Você foi incrível!":ratio>=.6?"Muito bem! Cada tentativa deixa seu cérebro mais forte.":"Boa! Vamos repetir essa aventura outro dia para ficar ainda mais fácil."}</p><div class="result-stars">${"⭐".repeat(starsEarn)}${"☆".repeat(3-starsEarn)}</div><button class="big-btn primary" id="againBtn">Jogar de novo</button> <button class="big-btn green" id="homeBtn">Escolher outra</button></div>`;
+    document.getElementById("againBtn").onclick=()=>startGame(id);document.getElementById("homeBtn").onclick=goHome;
+  }
+
+  function openParent(){
+    const rows=games.map(g=>{const p=state.plays[g.id]||0,c=state.correct[g.id]||0,a=state.attempts[g.id]||0,acc=a?Math.round(c/a*100):"—";return `<div>${g.icon} ${g.title}</div><div>${p}x</div><div>${acc}${acc==="—"?"":"%"}</div>`}).join("");
+    els.progressTable.innerHTML=`<div class="th">Atividade</div><div class="th">Jogou</div><div class="th">Acertos</div>${rows}`;
+    const totalA=Object.values(state.attempts).reduce((a,b)=>a+b,0),totalC=Object.values(state.correct).reduce((a,b)=>a+b,0),acc=totalA?Math.round(totalC/totalA*100):0;
+    let note="Ainda há poucos dados. Comece pelo ABC Mágico e pelo Primeiro Som.";
+    if(totalA>=10){if(acc<55)note="Vale priorizar ABC Mágico, Primeiro Som e Trem das Sílabas, com sessões curtas e bastante repetição.";else if(acc<75)note="Ela já reconhece parte do conteúdo. Reforce as sílabas iniciais e a montagem de palavras simples.";else note="Ótimo progresso no jogo. Continue alternando sílabas, montagem e leitura de palavras curtas."}
+    els.parentSummary.innerHTML=`<b>Resumo:</b> ${state.stars} estrelas acumuladas. ${totalA?`Aproveitamento geral aproximado de ${acc}%. `:""}${note}`;els.parentModal.classList.remove("hidden");
+  }
+
+  els.startBtn.onclick=()=>{state.name=(els.nameInput.value||"Minha Estrela").trim();save();renderHome();show(els.homeScreen)};
+  els.nameInput.addEventListener("keydown",e=>{if(e.key==="Enter")els.startBtn.click()});
+  els.backBtn.onclick=goHome;els.parentBtn.onclick=()=>{openParent();refreshVoices()};els.closeParent.onclick=()=>els.parentModal.classList.add("hidden");els.parentModal.onclick=e=>{if(e.target===els.parentModal)els.parentModal.classList.add("hidden")};
+  if(els.voiceSelect)els.voiceSelect.onchange=()=>{state.voiceName=els.voiceSelect.value;save();refreshVoices();speakSequence([{text:"Olá! Vamos brincar com as letras e as sílabas?",rate:.98,pauseAfter:350},{text:"Escute",rate:.98,pauseAfter:250},{text:"bá",rate:.93,pauseAfter:350},{text:"bê",rate:.93,pauseAfter:350},{text:"bi",rate:.93,pauseAfter:350},{text:"bó",rate:.93,pauseAfter:350},{text:"bu",rate:.93}])};
+  if(els.voiceTestBtn)els.voiceTestBtn.onclick=()=>speakSequence([{text:"Olá! Vamos brincar com as letras e as sílabas?",rate:.98,pauseAfter:350},{text:"Escute com atenção",rate:.98,pauseAfter:300},{text:"bá",rate:.93,pauseAfter:420},{text:"bê",rate:.93,pauseAfter:420},{text:"bi",rate:.93,pauseAfter:420},{text:"bó",rate:.93,pauseAfter:420},{text:"bu",rate:.93}]);
+  if("speechSynthesis" in window){speechSynthesis.onvoiceschanged=refreshVoices;setTimeout(refreshVoices,120);setTimeout(refreshVoices,700)}
+  els.resetBtn.onclick=()=>{if(confirm("Apagar todo o progresso salvo neste aparelho?")){state=defaultState();save();els.parentModal.classList.add("hidden");els.nameInput.value="";show(els.startScreen)}};
+  els.changeNameBtn.onclick=()=>{els.parentModal.classList.add("hidden");els.nameInput.value=state.name;show(els.startScreen)};
+
+  if(state.name){renderHome();show(els.homeScreen)} else show(els.startScreen);
+})();
+</script>
+</body>
+</html>
