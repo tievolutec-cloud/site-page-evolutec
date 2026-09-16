@@ -1,0 +1,59 @@
+const b=document.querySelector(".speak-btn");if(b)b.onclick=()=>{if(typeof fn==="function")fn();else speakInstruction(String(fn))}}
+
+  function renderAlphabet(){
+    const target=pick(alphabet);session.current=target;const options=shuffle([target,...sample(alphabet,5,[target])]);
+    els.gameArea.innerHTML=promptBase("","🔎","Encontre a letra que eu pedir.",target)+`<div class="answers">${options.map(x=>`<button class="answer" data-value="${x}">${x}</button>`).join("")}</div>`;
+    const say=()=>instructionLetter("Encontre a letra",target);attachSpeak(say);setTimeout(say,260);
+    document.querySelectorAll(".answer").forEach(b=>b.onclick=()=>markAnswer(b,b.dataset.value===target,target,()=>speakLetter(target),(chosen,done)=>{
+      feedback(`A letra certa é ${target}. Escute e tente de novo.`,`try`);
+      speakSequence([{text:"Você marcou a letra",rate:.98,pauseAfter:220},{text:letterName(chosen),rate:.94,pauseAfter:350},{text:"A letra que eu pedi foi",rate:.98,pauseAfter:250},{text:letterName(target),rate:.94,pauseAfter:400},{text:"Procure essa letra e tente novamente.",rate:.98}],done);
+    }));
+  }
+  function renderInitial(){
+    const w=pick(wordBank.filter(x=>["B","C","P","G","S","M","D","F","L","R","V","T"].includes(x.first)));session.current=w;const opts=shuffle([w.first,...sample(alphabet,3,[w.first])]);
+    els.gameArea.innerHTML=promptBase(w.emoji,"?","Com qual letra começa?",w.word)+`<div class="answers">${opts.map(x=>`<button class="answer" data-value="${x}">${x}</button>`).join("")}</div>`;
+    const say=()=>speakSequence([{text:w.word.toLowerCase(),rate:.98,pauseAfter:330},{text:"Com qual letra começa?",rate:.98}]);attachSpeak(say);setTimeout(say,300);
+    document.querySelectorAll(".answer").forEach(b=>b.onclick=()=>markAnswer(b,b.dataset.value===w.first,w.first,()=>speakSequence([{text:w.word.toLowerCase(),rate:.98,pauseAfter:260},{text:"Começa com a letra",rate:.98,pauseAfter:220},{text:letterName(w.first),rate:.94}]),(chosen,done)=>{
+      feedback(`Ouça o começo de ${w.word}: ${w.syll.join(" • ")}.`,`try`);
+      speakSequence([{text:"Você marcou errado. Escute o começo da palavra.",rate:.98,pauseAfter:420},...w.syll.map((syl,i)=>({text:syllableSound(syl),rate:.93,pauseAfter:i===0?650:420})),{text:w.word.toLowerCase(),rate:.98,pauseAfter:350},{text:"A primeira letra é",rate:.98,pauseAfter:220},{text:letterName(w.first),rate:.94,pauseAfter:400},{text:"Agora tente novamente.",rate:.98}],done);
+    }));
+  }
+  function renderFamilies(){
+    const consonant=pick(families), fam=familyMap[consonant], target=pick(fam);session.current=target;
+    els.gameArea.innerHTML=promptBase("🚂",target[0]+" + ?","Toque na sílaba que eu disser.",target)+`<div class="family-board">${shuffle(fam).map(x=>`<button class="family-btn" data-value="${x}">${x}</button>`).join("")}</div>`;
+    const say=()=>instructionSyllable("Toque na sílaba",target);attachSpeak(say);setTimeout(say,300);
+    document.querySelectorAll(".family-btn").forEach(b=>b.onclick=()=>markAnswer(b,b.dataset.value===target,target,()=>speakSyllable(target),(chosen,done)=>{
+      const c=target[0],v=target.slice(1);
+      feedback(`Escute de novo: ${target}.`,`try`);
+      speakSequence([{text:"Você marcou",rate:.98,pauseAfter:220},{text:syllableSound(chosen),rate:.93,pauseAfter:330},{text:"Mas eu pedi",rate:.98,pauseAfter:240},{text:syllableSound(target),rate:.92,pauseAfter:420},{text:`${letterName(c)} com ${letterName(v)} forma`,rate:.96,pauseAfter:260},{text:syllableSound(target),rate:.92,pauseAfter:420},{text:"Tente novamente.",rate:.98}],done);
+    }));
+  }
+  function renderStartSyl(){
+    const w=pick(wordBank.filter(x=>x.syll.length>=2));const target=w.syll[0];const pool=[...new Set(wordBank.flatMap(x=>x.syll).filter(s=>s.length===2))];const opts=shuffle([target,...sample(pool,3,[target])]);session.current=w;
+    els.gameArea.innerHTML=promptBase(w.emoji,w.word,"Qual sílaba vem primeiro?",w.word)+`<div class="answers">${opts.map(x=>`<button class="answer" data-value="${x}">${x}</button>`).join("")}</div>`;
+    const say=()=>speakSequence([{text:w.word.toLowerCase(),rate:.98,pauseAfter:330},{text:"Qual sílaba vem primeiro?",rate:.98}]);attachSpeak(say);setTimeout(say,300);
+    document.querySelectorAll(".answer").forEach(b=>b.onclick=()=>markAnswer(b,b.dataset.value===target,target,()=>speakSequence([{text:w.word.toLowerCase(),rate:.98,pauseAfter:280},{text:"Começa com a sílaba",rate:.98,pauseAfter:250},{text:syllableSound(target),rate:.92}]),(chosen,done)=>teachWrongStartSyllable(w,target,chosen,done)));
+  }
+  function renderBuild(){
+    const w=pick(wordBank.filter(x=>x.syll.length>=2&&x.syll.length<=3));session.current={w,selected:[]};
+    els.gameArea.innerHTML=promptBase(w.emoji,w.word,"Toque nas sílabas na ordem certa.",w.word)+`<div class="syllable-build" id="slots">${w.syll.map(()=>'<div class="slot">?</div>').join("")}</div><div class="syllable-build" id="chips">${shuffle(w.syll.map((s,i)=>({s,i}))).map(o=>`<button class="chip" data-s="${o.s}" data-i="${o.i}">${o.s}</button>`).join("")}</div>`;
+    const say=()=>speakWord(w.word);attachSpeak(say);setTimeout(say,300);
+    document.querySelectorAll(".chip").forEach(b=>b.onclick=()=>buildChoose(b));
+  }
+  function buildChoose(b){
+    if(session.lock)return;const {w,selected}=session.current;const pos=selected.length;state.attempts[session.id]=(state.attempts[session.id]||0)+1;
+    if(b.dataset.s===w.syll[pos]){selected.push(b.dataset.s);b.disabled=true;const slot=document.querySelectorAll(".slot")[pos];slot.textContent=b.dataset.s;slot.classList.add("filled");beep(true);speakSyllable(b.dataset.s);if(selected.length===w.syll.length){session.lock=true;session.correct++;state.correct[session.id]=(state.correct[session.id]||0)+1;state.stars+=3;feedback("Você montou "+w.word+"! 🌟");confetti();save();updateStats();showNext();}}
+    else{session.mistakes++;session.lock=true;beep(false);b.classList.add("wrong");feedback(`Vamos montar devagar: ${w.syll.join(" • ")}.`,`try`);setTimeout(()=>b.classList.remove("wrong"),650);const needed=w.syll[pos];setTimeout(()=>speakSequence([{text:"Essa sílaba ainda não.",rate:.98,pauseAfter:350},...w.syll.map((syl,i)=>({text:syllableSound(syl),rate:.93,pauseAfter:i===w.syll.length-1?450:560})),{text:`Agora precisamos da sílaba`,rate:.98,pauseAfter:260},{text:syllableSound(needed),rate:.92,pauseAfter:420},{text:"Tente novamente.",rate:.98}],()=>{session.lock=false}),300);save();}
+  }
+  function renderRead(){
+    const w=pick(wordBank.filter(x=>x.syll.length<=3));const distract=sample(wordBank,3,[w]);const opts=shuffle([w,...distract]);session.current=w;
+    els.gameArea.innerHTML=promptBase("",w.word,"Leia devagar. Qual figura combina?",w.word)+`<div class="answers">${opts.map(x=>`<button class="answer picture" data-value="${x.word}">${x.emoji}</button>`).join("")}</div>`;
+    attachSpeak(()=>speakWord(w.word));document.querySelectorAll(".answer").forEach(b=>b.onclick=()=>markAnswer(b,b.dataset.value===w.word,w.word,()=>speakWord(w.word),(chosen,done)=>{
+      feedback(`Leia comigo: ${w.syll.join(" • ")}.`,`try`);
+      speakSequence([{text:"Essa figura não combina com a palavra. Leia comigo.",rate:.98,pauseAfter:420},...w.syll.map((syl,i)=>({text:syllableSound(syl),rate:.93,pauseAfter:i===w.syll.length-1?500:600})),{text:w.word.toLowerCase(),rate:.98,pauseAfter:400},{text:"Agora procure a figura certa.",rate:.98}],done);
+    }));
+  }
+  function renderMemory(){
+    const chosen=sample(wordBank.filter(x=>x.syll.length>=2),6);const cards=[];chosen.forEach((w,i)=>{cards.push({key:i,type:"syl",val:w.syll[0],label:w.syll[0]});cards.push({key:i,type:"pic",val:w.emoji,label:w.emoji,small:w.word})});
+    session.current={cards:shuffle(cards),open:[],matched:0,moves:0};
+    els.gameArea.innerHTML=`<div class="prompt-box"><div class="prompt-emoji">🧠</div><div class="prompt-main" style="font-size:36px">Encontre os pares</div><div class="prompt-sub">Combine a sílaba com uma figura cuja palavra começa com ela.</div><
